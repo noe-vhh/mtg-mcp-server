@@ -95,19 +95,41 @@ def _format_combos_section(combos: list[Combo]) -> list[str]:
     return lines
 
 
-def _format_edhrec_staples(data: EDHRECCommanderData) -> list[str]:
+_BASIC_LANDS = frozenset(
+    {"plains", "island", "swamp", "mountain", "forest", "wastes"}
+    | {f"snow-covered {b}" for b in ("plains", "island", "swamp", "mountain", "forest")}
+)
+
+
+def _top_staples(data: EDHRECCommanderData, limit: int) -> list[EDHRECCard]:
+    """Top staples by inclusion across all categories.
+
+    Basic lands are skipped (they top every list and tell you nothing) and a
+    card that appears in several categories (e.g. "Top Cards" and "Creatures")
+    is counted once.
+    """
+    if limit <= 0:
+        return []
+    seen: set[str] = set()
+    cards: list[EDHRECCard] = []
+    for cardlist in data.cardlists:
+        for card in cardlist.cardviews:
+            key = card.name.lower()
+            if key in seen or key in _BASIC_LANDS:
+                continue
+            seen.add(key)
+            cards.append(card)
+    cards.sort(key=lambda c: c.inclusion, reverse=True)
+    return cards[:limit]
+
+
+def _format_edhrec_staples(data: EDHRECCommanderData, limit: int = _MAX_STAPLES) -> list[str]:
     """Format the EDHREC staples section."""
     lines = ["", "## EDHREC Staples", ""]
     lines.append(f"Based on {data.total_decks} decks:")
     lines.append("")
 
-    # Collect all cards across all cardlists, take top N by inclusion
-    all_cards: list[EDHRECCard] = []
-    for cardlist in data.cardlists:
-        all_cards.extend(cardlist.cardviews)
-    all_cards.sort(key=lambda c: c.inclusion, reverse=True)
-
-    for card in all_cards[:_MAX_STAPLES]:
+    for card in _top_staples(data, limit):
         lines.append(
             f"- **{card.name}** — {card.inclusion}% inclusion, "
             f"{_fmt_synergy(card.synergy)} synergy ({card.num_decks} decks)"
@@ -180,6 +202,7 @@ async def commander_overview(
     spellbook: SpellbookClient,
     edhrec: EDHRECClient | None,
     response_format: Literal["detailed", "concise"] = "detailed",
+    limit: int = _MAX_STAPLES,
 ) -> WorkflowResult:
     """Get a comprehensive overview of a commander from all available sources.
 
@@ -192,6 +215,9 @@ async def commander_overview(
         scryfall: Initialized ScryfallClient.
         spellbook: Initialized SpellbookClient.
         edhrec: Initialized EDHRECClient, or None if disabled.
+        response_format: "detailed" or "concise".
+        limit: Max EDHREC staples to list (0 for none). Applies to both the
+            markdown and the structured output.
 
     Returns:
         WorkflowResult with markdown and structured data.
@@ -283,6 +309,11 @@ async def commander_overview(
 
         if edhrec_enabled and edhrec_ok and edhrec_data is not None:
             lines.append(f"EDHREC decks: {edhrec_data.total_decks}")
+            staples = _top_staples(edhrec_data, limit)
+            if staples:
+                lines.append(
+                    "Top staples: " + ", ".join(f"{c.name} ({c.inclusion}%)" for c in staples)
+                )
         elif edhrec_enabled and edhrec_ok is False:
             lines.append(f"EDHREC: unavailable ({edhrec_error})")
         elif not edhrec_enabled:
@@ -305,7 +336,7 @@ async def commander_overview(
             lines.append(f"Spellbook unavailable: {spellbook_error}")
 
         if edhrec_enabled and edhrec_ok and edhrec_data is not None:
-            lines.extend(_format_edhrec_staples(edhrec_data))
+            lines.extend(_format_edhrec_staples(edhrec_data, limit))
         elif edhrec_enabled and edhrec_ok is False:
             lines.append("")
             lines.append("## EDHREC Staples")
@@ -329,14 +360,16 @@ async def commander_overview(
         edhrec_slim = {
             "commander_name": edhrec_data.commander_name,
             "total_decks": edhrec_data.total_decks,
-            "categories": [
+            "top_staples": [slim_edhrec_card(c) for c in _top_staples(edhrec_data, limit)],
+        }
+        if response_format == "detailed":
+            edhrec_slim["categories"] = [
                 {
                     "header": cl.header,
-                    "cards": [slim_edhrec_card(c) for c in cl.cardviews[:_MAX_STAPLES]],
+                    "cards": [slim_edhrec_card(c) for c in cl.cardviews[:limit]],
                 }
                 for cl in edhrec_data.cardlists
-            ],
-        }
+            ]
     data = {
         "commander": slim_card(card),
         "combos": [slim_combo(c) for c in combos[:_MAX_COMBOS]],

@@ -223,6 +223,14 @@ async def commander_overview(
         Literal["detailed", "concise"],
         Field(description="Output verbosity: 'detailed' (default) or 'concise'"),
     ] = "detailed",
+    limit: Annotated[
+        int,
+        Field(
+            ge=0,
+            description="Max EDHREC staples to list (default 10, 0 for none). "
+            "Basic lands are excluded.",
+        ),
+    ] = 10,
 ) -> ToolResult:
     """Comprehensive commander profile combining data from all available sources.
 
@@ -241,6 +249,7 @@ async def commander_overview(
             spellbook=_require_spellbook(),
             edhrec=_edhrec,
             response_format=response_format,
+            limit=limit,
         )
         return ToolResult(content=result.markdown, structured_content=result.data)
     except CardNotFoundError as exc:

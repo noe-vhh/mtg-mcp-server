@@ -756,6 +756,104 @@ class TestCommanderOverviewResponseFormat:
         assert "**Data Sources:**" in detailed.markdown
 
 
+def _staple(name: str, inclusion: int, synergy: float = 0.1) -> EDHRECCard:
+    """Build a minimal EDHRECCard for staples-list tests."""
+    return EDHRECCard(
+        name=name,
+        sanitized=name.lower().replace(" ", "-"),
+        synergy=synergy,
+        inclusion=inclusion,
+        num_decks=inclusion * 100,
+        potential_decks=10_000,
+    )
+
+
+class TestCommanderOverviewStaples:
+    """Staples list: basics excluded, duplicates collapsed, limit honoured."""
+
+    @pytest.fixture
+    def staples_data(self) -> EDHRECCommanderData:
+        return EDHRECCommanderData(
+            commander_name="Muldrotha, the Gravetide",
+            total_decks=10_000,
+            cardlists=[
+                EDHRECCardList(
+                    header="Top Cards",
+                    tag="topcards",
+                    cardviews=[_staple("Sol Ring", 92), _staple("Spore Frog", 61)],
+                ),
+                EDHRECCardList(
+                    header="Creatures",
+                    tag="creatures",
+                    cardviews=[_staple("Spore Frog", 61), _staple("Eternal Witness", 55)],
+                ),
+                EDHRECCardList(
+                    header="Lands",
+                    tag="lands",
+                    cardviews=[_staple("Swamp", 98), _staple("Snow-Covered Forest", 70)],
+                ),
+            ],
+        )
+
+    async def _run(
+        self,
+        scryfall: AsyncMock,
+        spellbook: AsyncMock,
+        edhrec: AsyncMock,
+        mock_card: Card,
+        data: EDHRECCommanderData,
+        **kwargs,
+    ):
+        scryfall.get_card_by_name = AsyncMock(return_value=mock_card)
+        spellbook.find_combos = AsyncMock(return_value=[])
+        edhrec.commander_top_cards = AsyncMock(return_value=data)
+        return await commander_overview(
+            "Muldrotha, the Gravetide",
+            scryfall=scryfall,
+            spellbook=spellbook,
+            edhrec=edhrec,
+            **kwargs,
+        )
+
+    async def test_basics_excluded_and_duplicates_collapsed(
+        self, scryfall, spellbook, edhrec, mock_card, staples_data
+    ) -> None:
+        result = await self._run(scryfall, spellbook, edhrec, mock_card, staples_data)
+        names = [c["name"] for c in result.data["edhrec"]["top_staples"]]
+        assert names == ["Sol Ring", "Spore Frog", "Eternal Witness"]
+        assert "Swamp" not in result.markdown
+        assert result.markdown.count("**Spore Frog**") == 1
+
+    async def test_limit_applies_to_markdown_and_structured(
+        self, scryfall, spellbook, edhrec, mock_card, staples_data
+    ) -> None:
+        result = await self._run(scryfall, spellbook, edhrec, mock_card, staples_data, limit=1)
+        assert [c["name"] for c in result.data["edhrec"]["top_staples"]] == ["Sol Ring"]
+        assert "Eternal Witness" not in result.markdown
+        assert all(len(cat["cards"]) <= 1 for cat in result.data["edhrec"]["categories"])
+
+    async def test_limit_zero_lists_no_staples(
+        self, scryfall, spellbook, edhrec, mock_card, staples_data
+    ) -> None:
+        result = await self._run(
+            scryfall, spellbook, edhrec, mock_card, staples_data, response_format="concise", limit=0
+        )
+        assert result.data["edhrec"]["top_staples"] == []
+        assert "Top staples" not in result.markdown
+
+    async def test_concise_lists_staples_and_drops_categories(
+        self, scryfall, spellbook, edhrec, mock_card, staples_data
+    ) -> None:
+        result = await self._run(
+            scryfall, spellbook, edhrec, mock_card, staples_data, response_format="concise"
+        )
+        assert "Top staples: Sol Ring (92%), Spore Frog (61%), Eternal Witness (55%)" in (
+            result.markdown
+        )
+        assert "categories" not in result.data["edhrec"]
+        assert result.data["edhrec"]["total_decks"] == 10_000
+
+
 class TestEvaluateUpgradeResponseFormat:
     """Concise output is shorter than detailed and omits verbose sections."""
 
