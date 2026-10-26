@@ -184,6 +184,27 @@ class TestCommanderTopCards:
                 await client.commander_top_cards("Xyzzy Nonexistent")
 
     @respx.mock
+    async def test_total_decks_falls_back_to_potential_decks(self):
+        """When the top-level deck count is absent, use the largest potential_decks.
+
+        Live EDHREC pages no longer always carry ``num_decks_avg``; every card
+        still reports ``potential_decks`` (decks the card could appear in), and
+        the maximum is the commander's total deck count. "New Cards" report a
+        smaller number (only decks since their release), so max() is required.
+        """
+        fixture = _load_fixture("commander_muldrotha.json")
+        fixture.pop("num_decks_avg")
+        respx.get(f"{BASE_URL}/pages/commanders/muldrotha-the-gravetide.json").mock(
+            return_value=httpx.Response(200, json=fixture)
+        )
+        async with EDHRECClient(base_url=BASE_URL) as client:
+            result = await client.commander_top_cards("Muldrotha, the Gravetide")
+
+        all_potential = [c.potential_decks for cl in result.cardlists for c in cl.cardviews]
+        assert result.total_decks == max(all_potential)
+        assert result.total_decks > 0
+
+    @respx.mock
     async def test_defensive_missing_cardlists(self):
         """Handle missing or malformed container structure gracefully."""
         fixture = {"header": "Test Commander", "container": {}}

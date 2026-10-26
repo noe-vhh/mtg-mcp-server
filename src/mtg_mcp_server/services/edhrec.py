@@ -220,6 +220,15 @@ class EDHRECClient(BaseClient):
 
             cardlists.append(EDHRECCardList(header=cl_header, tag=tag, cardviews=cards))
 
+        # Live pages don't always carry the top-level deck count. Every card still
+        # reports ``potential_decks``; the maximum is the commander's total
+        # (cards released later, e.g. "New Cards", report a smaller number).
+        if total_decks == 0:
+            total_decks = max(
+                (c.potential_decks for cl in cardlists for c in cl.cardviews),
+                default=0,
+            )
+
         if category is not None:
             category_lower = category.lower()
             # Exact match first; fall back to substring (e.g. "artifacts"
