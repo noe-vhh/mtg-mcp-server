@@ -45,6 +45,9 @@ class TestFindCombos:
         assert "5 combo(s)" in text
         assert "Muldrotha, the Gravetide" in text
         assert "1414-2730-5131-5256" in text
+        # Bracket tags are spelled out, not left as bare letters
+        assert "Bracket: E (Exhibition: any bracket, 1+)" in text
+        assert "Bracket: S (Spicy: probably bracket 3 or 4)" in text
         assert "Data provided by [Commander Spellbook]" in text
 
         # Structured output
@@ -177,12 +180,13 @@ class TestEstimateBracket:
             },
         )
         text = result.content[0].text
-        assert "E" in text
+        assert "**Bracket Estimate:** E (Exhibition: any bracket, 1+)" in text
 
         # Structured output
         sc = result.structured_content
         assert isinstance(sc, dict)
         assert "bracket_tag" in sc
+        assert sc["bracket_label"] == "E (Exhibition: any bracket, 1+)"
         assert "banned_cards" in sc
         assert "two_card_combos" in sc
 

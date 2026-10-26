@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `spellbook_estimate_bracket` reports extra-turn, mass-land-denial, control-opponent and skip-turn
   findings, which decide Bracket 1-2 eligibility (previously parsed away).
 - `ScryfallClient.search_cards` accepts optional `order` / `direction`.
+- Spellbook bracket tags are spelled out wherever they appear (`E` becomes `E (Exhibition: any
+  bracket, 1+)`), using the definitions from Commander Spellbook's syntax guide;
+  `spellbook_estimate_bracket` also returns `bracket_label` in its structured output.
 
 ### Fixed
 

@@ -116,7 +116,7 @@ Estimate the Commander bracket for a decklist based on its combo density.
 | Field | Detail |
 |-------|--------|
 | Input | `commanders: list[str]`, `decklist: list[str]` (card names) |
-| Output | Bracket tag, banned cards, game-changer cards, two-card combos, lock combos, extra-turn cards/combos, mass-land-denial cards/combos, control-opponent combos, skip-turn combos |
+| Output | Bracket tag, banned cards, game-changer cards, two-card combos, lock combos, extra-turn cards/combos, mass-land-denial cards/combos, control-opponent combos, skip-turn combos. The bracket tag is shown with its meaning (R Ruthless, S Spicy, P Powerful, O Oddball, C Core, E Exhibition, B Banned) |
 | Backend | `SpellbookClient.estimate_bracket()` |
 | Annotations | readOnly=true, idempotent=true, openWorld=true |
 

@@ -25,6 +25,7 @@ from mtg_mcp_server.services.spellbook import (
     SpellbookClient,
     SpellbookError,
 )
+from mtg_mcp_server.utils.bracket import describe_bracket_tag
 from mtg_mcp_server.utils.slim import slim_combo
 
 if TYPE_CHECKING:
@@ -108,7 +109,7 @@ async def find_combos(
         lines.append("")
         lines.extend(_format_combo_summary(combo))
         if combo.bracket_tag:
-            lines.append(f"    Bracket: {combo.bracket_tag}")
+            lines.append(f"    Bracket: {describe_bracket_tag(combo.bracket_tag)}")
         lines.append(f"    Popularity: {combo.popularity}")
     return ToolResult(
         content="\n".join(lines) + ATTRIBUTION_SPELLBOOK,
@@ -160,7 +161,7 @@ async def combo_details(
     lines.append(f"\nResults: {results}")
 
     if combo.bracket_tag:
-        lines.append(f"Bracket: {combo.bracket_tag}")
+        lines.append(f"Bracket: {describe_bracket_tag(combo.bracket_tag)}")
     lines.append(f"Popularity: {combo.popularity}")
 
     return ToolResult(
@@ -265,7 +266,7 @@ async def estimate_bracket(
     except SpellbookError as exc:
         raise ToolError(f"Spellbook API error: {exc}") from exc
 
-    lines = [f"**Bracket Estimate:** {result.bracket_tag or 'Unknown'}"]
+    lines = [f"**Bracket Estimate:** {describe_bracket_tag(result.bracket_tag)}"]
 
     sections = [
         ("Banned cards", result.banned_cards),
@@ -289,7 +290,10 @@ async def estimate_bracket(
 
     return ToolResult(
         content="\n".join(lines) + ATTRIBUTION_SPELLBOOK,
-        structured_content=result.model_dump(mode="json"),
+        structured_content={
+            **result.model_dump(mode="json"),
+            "bracket_label": describe_bracket_tag(result.bracket_tag),
+        },
     )
 
 

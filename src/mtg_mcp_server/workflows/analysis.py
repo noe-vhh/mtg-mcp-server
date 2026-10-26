@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 import structlog
 
 from mtg_mcp_server.services.base import ServiceError
+from mtg_mcp_server.utils.bracket import describe_bracket_tag
 from mtg_mcp_server.utils.mana import count_pips
 from mtg_mcp_server.workflows import WorkflowResult
 from mtg_mcp_server.workflows.deck import build_synergy_lookup
@@ -451,7 +452,7 @@ def _format_output(
     lines.append("## Combos & Bracket")
     lines.append("")
     if bracket is not None:
-        lines.append(f"**Bracket:** {bracket.bracket_tag or 'Unknown'}")
+        lines.append(f"**Bracket:** {describe_bracket_tag(bracket.bracket_tag)}")
     else:
         lines.append("**Bracket:** Unknown (Spellbook unavailable)")
 
