@@ -213,6 +213,49 @@ class TestEstimateBracket:
         assert "No bracket-relevant concerns found." not in text
         assert result.structured_content["extra_turn_cards"] == ["Time Warp"]
 
+    @respx.mock
+    async def test_reports_combos_and_card_flags_from_current_api_shape(self, client: Client):
+        """Current API shape: findings come from per-card flags and the combos list."""
+        payload = {
+            "bracketTag": "R",
+            "cards": [
+                {
+                    "card": {"name": "Time Warp"},
+                    "quantity": 1,
+                    "banned": False,
+                    "gameChanger": False,
+                    "massLandDenial": False,
+                    "extraTurn": True,
+                }
+            ],
+            "combos": [
+                {
+                    "combo": {
+                        "id": "9-9",
+                        "uses": [
+                            {"card": {"name": "Thassa's Oracle"}},
+                            {"card": {"name": "Demonic Consultation"}},
+                        ],
+                        "bracketTag": "R",
+                    }
+                }
+            ],
+        }
+        respx.post(f"{BASE_URL}/estimate-bracket").mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+
+        result = await client.call_tool(
+            "estimate_bracket",
+            {"commanders": ["Edgar Markov"], "decklist": ["Time Warp"]},
+        )
+        text = result.content[0].text
+        assert "**Bracket Estimate:** R (Ruthless: competitive, bracket 4+)" in text
+        assert "Extra-turn cards: Time Warp" in text
+        assert "Two-card combos: Thassa's Oracle + Demonic Consultation" in text
+        assert "Combos: Thassa's Oracle + Demonic Consultation [R]" in text
+        assert "No bracket-relevant concerns found." not in text
+
 
 class TestToolRegistration:
     """Spellbook provider tool registration."""

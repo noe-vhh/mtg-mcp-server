@@ -281,6 +281,55 @@ class TestEstimateBracket:
         result = BracketEstimate.model_validate(data)
         assert result.game_changer_cards == ["Sol Ring"]
 
+    def test_bracket_lists_combos_from_current_response_shape(self):
+        """`combos` entries wrap a variant under "combo"; cards live in its `uses`.
+
+        Shape captured from the live /estimate-bracket API (Oct 2026). Includes a
+        combo that uses the commander, which the old parser could not see.
+        """
+
+        def use(name: str) -> dict:
+            return {"card": {"id": 1, "name": name}, "quantity": 1, "zoneLocations": ["B"]}
+
+        data = {
+            "bracketTag": "R",
+            "cards": [],
+            "combos": [
+                {
+                    "combo": {
+                        "id": "3054-3416-4050",
+                        "uses": [
+                            use("Edgar Markov"),
+                            use("Oathsworn Vampire"),
+                            use("Phyrexian Altar"),
+                        ],
+                        "requires": [],
+                        "bracketTag": "E",
+                    }
+                },
+                {
+                    "combo": {
+                        "id": "1-2",
+                        "uses": [use("Thassa's Oracle"), use("Demonic Consultation")],
+                        "requires": [],
+                        "bracketTag": "R",
+                    }
+                },
+            ],
+        }
+        result = BracketEstimate.model_validate(data)
+        assert result.combos == [
+            "Edgar Markov + Oathsworn Vampire + Phyrexian Altar [E]",
+            "Thassa's Oracle + Demonic Consultation [R]",
+        ]
+        assert result.two_card_combos == ["Thassa's Oracle + Demonic Consultation"]
+
+    def test_bracket_combos_tolerates_malformed_entries(self):
+        """Odd entries are skipped rather than raising."""
+        data = {"combos": ["junk", {"combo": None}, {"combo": {"uses": "nope"}}, 5]}
+        result = BracketEstimate.model_validate(data)
+        assert result.combos == []
+
 
 class TestSpellbookServerErrors:
     """Spellbook API server error handling."""

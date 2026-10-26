@@ -266,28 +266,72 @@ class BracketEstimate(BaseModel):
         default_factory=list, alias="controlSomeOpponentsCombos"
     )
     skip_turns_combos: list[str] = Field(default_factory=list, alias="skipTurnsCombos")
+    # Every combo Spellbook found in the deck (including ones that use the
+    # commander), as "A + B + C [tag]".
+    combos: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
     @model_validator(mode="before")
     @classmethod
-    def _derive_from_card_flags(cls, data: object) -> object:
-        """Build the card-name lists from per-card flags when the API gives `cards`."""
-        if not isinstance(data, dict) or not isinstance(data.get("cards"), list):
+    def _derive_from_current_response(cls, data: object) -> object:
+        """Fill the lists from Spellbook's current response shape.
+
+        The current /estimate-bracket response has ``cards`` (per-card boolean
+        flags) and ``combos`` (each wrapping a variant under ``"combo"``) instead
+        of per-category lists. Explicit lists in the payload take precedence.
+        """
+        if not isinstance(data, dict):
             return data
-        derived: dict[str, list[str]] = {key: [] for key in _BRACKET_CARD_FLAGS.values()}
-        for entry in data["cards"]:
-            if not isinstance(entry, dict):
-                continue
-            card = entry.get("card")
-            name = card.get("name") if isinstance(card, dict) else None
-            if not name:
-                continue
-            for flag, key in _BRACKET_CARD_FLAGS.items():
-                if entry.get(flag) is True:
-                    derived[key].append(str(name))
-        # Explicit lists in the payload (older response style) take precedence.
-        return {**{k: v for k, v in derived.items() if v}, **data}
+        derived: dict[str, list[str]] = {}
+
+        if isinstance(data.get("cards"), list):
+            for key in _BRACKET_CARD_FLAGS.values():
+                derived[key] = []
+            for entry in data["cards"]:
+                if not isinstance(entry, dict):
+                    continue
+                card = entry.get("card")
+                name = card.get("name") if isinstance(card, dict) else None
+                if not name:
+                    continue
+                for flag, key in _BRACKET_CARD_FLAGS.items():
+                    if entry.get(flag) is True:
+                        derived[key].append(str(name))
+
+        if isinstance(data.get("combos"), list):
+            all_combos: list[str] = []
+            two_card: list[str] = []
+            for entry in data["combos"]:
+                variant = entry.get("combo") if isinstance(entry, dict) else None
+                if not isinstance(variant, dict):
+                    continue
+                uses = variant.get("uses")
+                if not isinstance(uses, list):
+                    continue
+                names = [
+                    str(u["card"]["name"])
+                    for u in uses
+                    if isinstance(u, dict)
+                    and isinstance(u.get("card"), dict)
+                    and u["card"].get("name")
+                ]
+                if not names:
+                    continue
+                label = " + ".join(names)
+                tag = variant.get("bracketTag")
+                all_combos.append(f"{label} [{tag}]" if tag else label)
+                if len(names) == 2 and not variant.get("requires"):
+                    two_card.append(label)
+            derived["combos"] = all_combos
+            derived["twoCardCombos"] = two_card
+
+        # Explicit lists in the payload (older response style) take precedence,
+        # but the raw `combos` objects are always replaced by the readable list.
+        merged = {**{k: v for k, v in derived.items() if v}, **data}
+        if "combos" in derived:
+            merged["combos"] = derived["combos"]
+        return merged
 
     @field_validator(
         "banned_cards",
