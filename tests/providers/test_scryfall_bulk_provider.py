@@ -147,6 +147,8 @@ class TestToolRegistration:
         tool_names = {t.name for t in tools}
         expected = {
             "card_lookup",
+            "cards_lookup",
+            "collection_filter",
             "card_search",
             "format_legality",
             "format_search",
@@ -1465,6 +1467,8 @@ class TestNewToolRegistration:
         tool_names = {t.name for t in tools}
         expected = {
             "card_lookup",
+            "cards_lookup",
+            "collection_filter",
             "card_search",
             "format_legality",
             "format_search",

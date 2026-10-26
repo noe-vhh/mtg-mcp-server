@@ -23,7 +23,12 @@ from mtg_mcp_server.providers import (
     format_legalities,
 )
 from mtg_mcp_server.services.scryfall import CardNotFoundError, ScryfallClient, ScryfallError
-from mtg_mcp_server.utils.formatters import ResponseFormat, format_card_detail, format_card_line
+from mtg_mcp_server.utils.formatters import (
+    ResponseFormat,
+    format_card_detail,
+    format_card_line,
+    format_card_rules_line,
+)
 from mtg_mcp_server.utils.slim import slim_card
 
 # Module-level client set by the lifespan. This pattern is required because
@@ -76,6 +81,12 @@ async def search_cards(
         ResponseFormat,
         Field(description="Output verbosity: 'detailed' (default) or 'concise'"),
     ] = "detailed",
+    include_text: Annotated[
+        bool,
+        Field(
+            description="Also show oracle text, colour identity and Commander legality per card (longer output; lower 'limit' to keep it short)"
+        ),
+    ] = False,
 ) -> ToolResult:
     """Search for Magic cards using Scryfall syntax.
 
@@ -99,7 +110,10 @@ async def search_cards(
 
     lines = [f"Found {result.total_cards} cards (showing {showing} of {total}, page {page}):"]
     for card in cards:
-        lines.append(format_card_line(card, response_format=response_format))
+        if include_text:
+            lines.append(format_card_rules_line(card))
+        else:
+            lines.append(format_card_line(card, response_format=response_format))
     if showing < total:
         lines.append(f"\n{total - showing} more on this page — increase limit to see them.")
     if result.has_more:
@@ -114,6 +128,43 @@ async def search_cards(
             "showing": showing,
             "card_detail_uri_template": "mtg://card/{name}",
             "cards": [slim_card(card) for card in cards],
+        },
+    )
+
+
+@scryfall_mcp.tool(annotations=TOOL_ANNOTATIONS, tags=TAGS_LOOKUP)
+async def cards_collection(
+    names: Annotated[
+        list[str],
+        Field(description="Exact card names to look up in one request (up to 150 per call)"),
+    ],
+) -> ToolResult:
+    """Look up many cards at once by exact name (live Scryfall, no bulk data needed).
+
+    Returns oracle text, colour identity and Commander legality for every card
+    found, plus the names that were not found. One call replaces many
+    ``card_details`` calls.
+    """
+    if not names:
+        raise ToolError("Provide at least one card name.")
+    if len(names) > 150:
+        raise ToolError(f"Too many names ({len(names)}); the limit is 150 per call.")
+
+    client = _get_client()
+    try:
+        found, missing = await client.get_cards_collection(names)
+    except ScryfallError as exc:
+        raise ToolError(f"Scryfall API error: {exc}") from exc
+
+    lines = [f"Found {len(found)} of {len(names)} cards:"]
+    lines.extend(format_card_rules_line(card) for card in found)
+    if missing:
+        lines.append(f"\nNot found ({len(missing)}): {', '.join(missing)}")
+    return ToolResult(
+        content="\n".join(lines) + ATTRIBUTION_SCRYFALL,
+        structured_content={
+            "found": [slim_card(card) for card in found],
+            "not_found": missing,
         },
     )
 

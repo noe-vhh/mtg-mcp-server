@@ -12,11 +12,13 @@ data) are conditionally mounted based on ``Settings`` values loaded from ``MTG_M
 from __future__ import annotations
 
 import sys
+from typing import Annotated
 
 import structlog
 from fastmcp import FastMCP
 from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
 from mcp.types import Icon, ToolAnnotations
+from pydantic import Field
 
 from mtg_mcp_server import __version__
 from mtg_mcp_server.config import Settings
@@ -159,10 +161,39 @@ if _settings.enable_code_mode:
 _PING_ANNOTATIONS = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False)
 
 
+async def _deep_health(enable_bulk_data: bool) -> str:
+    """Build the extra health line for ``ping(deep=True)``."""
+    if not enable_bulk_data:
+        return "bulk: disabled"
+    from mtg_mcp_server.providers import scryfall_bulk as bulk_provider
+
+    client = bulk_provider._client
+    if client is None:
+        return "bulk: FAILED (client not initialised)"
+    try:
+        await client.ensure_loaded()
+    except Exception as exc:  # health check: report any load failure, never raise
+        return f"bulk: FAILED ({exc})"
+    status = client.status()
+    return f"bulk: OK ({status['card_count']} cards, loaded {status['age_seconds']}s ago)"
+
+
 @mcp.tool(annotations=_PING_ANNOTATIONS)
-async def ping() -> str:
-    """Health check — returns 'pong'."""
-    return "pong"
+async def ping(
+    deep: Annotated[
+        bool,
+        Field(description="Also check that the Scryfall bulk data is loaded (card count and age)"),
+    ] = False,
+) -> str:
+    """Health check — returns 'pong'.
+
+    With ``deep=True`` it also reports whether the Scryfall bulk data is loaded
+    (card count and age), and tries to load it if it is not, so a broken bulk
+    download shows up here instead of in the middle of a deck-building session.
+    """
+    if not deep:
+        return "pong"
+    return f"pong | {await _deep_health(_settings.enable_bulk_data)}"
 
 
 def main() -> None:  # pragma: no cover

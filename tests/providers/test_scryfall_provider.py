@@ -405,12 +405,13 @@ class TestToolRegistration:
     """Scryfall provider tool registration."""
 
     async def test_all_tools_registered(self, client: Client):
-        """All six Scryfall tools are registered on the provider."""
+        """All Scryfall tools are registered on the provider."""
         tools = await client.list_tools()
         tool_names = {t.name for t in tools}
         assert tool_names == {
             "search_cards",
             "card_details",
+            "cards_collection",
             "card_price",
             "card_rulings",
             "set_info",

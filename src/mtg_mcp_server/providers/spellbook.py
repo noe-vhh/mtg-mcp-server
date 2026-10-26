@@ -175,35 +175,75 @@ async def find_decklist_combos(
         list[str], Field(description="Commander card name(s) (e.g. ['Muldrotha, the Gravetide'])")
     ],
     decklist: Annotated[list[str], Field(description="List of card names in the main deck")],
+    limit: Annotated[
+        int,
+        Field(description="Max combos to list per section (default 15); 0 for all"),
+    ] = 15,
+    max_missing: Annotated[
+        int | None,
+        Field(
+            description="Only show almost-included combos missing at most this many cards "
+            "(1 = one card away). Omit for no filter"
+        ),
+    ] = None,
 ) -> ToolResult:
     """Find combos present in (or nearly present in) a Commander decklist.
 
     Provide commander name(s) and a list of card names in the main deck.
     Returns combos that are fully included and those that are almost included.
+    Almost-included combos are sorted by fewest missing cards, then popularity,
+    and each one names the card(s) you are missing.
     """
+    if limit < 0:
+        raise ToolError(f"limit must be >= 0 (0 for all), got {limit}")
+    if max_missing is not None and max_missing < 0:
+        raise ToolError(f"max_missing must be >= 0, got {max_missing}")
+
     client = _get_client()
     try:
         result = await client.find_decklist_combos(commanders, decklist)
     except SpellbookError as exc:
         raise ToolError(f"Spellbook API error: {exc}") from exc
 
+    have = {name.lower() for name in decklist} | {name.lower() for name in commanders}
+    almost = [(combo, _missing_cards(combo, have)) for combo in result.almost_included]
+    if max_missing is not None:
+        almost = [(c, m) for c, m in almost if len(m) <= max_missing]
+    almost.sort(key=lambda pair: (len(pair[1]), -pair[0].popularity))
+
+    included = result.included if limit == 0 else result.included[:limit]
+    almost_shown = almost if limit == 0 else almost[:limit]
+
     lines = [f"Decklist combo analysis (Identity: {result.identity}):"]
 
     if result.included:
-        lines.append(f"\n**Included combos ({len(result.included)}):**")
-        for combo in result.included:
+        lines.append(f"\n**Included combos (showing {len(included)} of {len(result.included)}):**")
+        for combo in included:
             lines.extend(_format_combo_summary(combo))
     else:
         lines.append("\nNo fully included combos found.")
 
     if result.almost_included:
-        lines.append(f"\n**Almost included combos ({len(result.almost_included)}):**")
-        for combo in result.almost_included:
+        lines.append(
+            f"\n**Almost included combos (showing {len(almost_shown)} of {len(almost)}"
+            f"{'' if len(almost) == len(result.almost_included) else f', filtered from {len(result.almost_included)}'}"
+            "), fewest missing first:**"
+        )
+        for combo, missing in almost_shown:
             lines.extend(_format_combo_summary(combo))
+            lines.append(f"    Missing ({len(missing)}): {', '.join(missing) or 'unknown'}")
 
     return ToolResult(
         content="\n".join(lines) + ATTRIBUTION_SPELLBOOK,
-        structured_content=result.model_dump(mode="json"),
+        structured_content={
+            "identity": result.identity,
+            "included": [c.model_dump(mode="json") for c in included],
+            "included_total": len(result.included),
+            "almost_included": [
+                {**c.model_dump(mode="json"), "missing": m} for c, m in almost_shown
+            ],
+            "almost_included_total": len(almost),
+        },
     )
 
 
@@ -255,6 +295,16 @@ async def estimate_bracket(
 def _zone_name(code: str) -> str:
     """Map single-letter zone codes to human-readable names."""
     return _ZONE_NAMES.get(code, code)
+
+
+def _missing_cards(combo: Combo, have: set[str]) -> list[str]:
+    """Names of combo cards that are not in the deck (case-insensitive, DFC-aware)."""
+    missing: list[str] = []
+    for card in combo.cards:
+        names = {card.name.lower(), card.name.lower().split(" // ")[0]}
+        if not names & have:
+            missing.append(card.name)
+    return missing
 
 
 def _format_combo_summary(combo: Combo) -> list[str]:

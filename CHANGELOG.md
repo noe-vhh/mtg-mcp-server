@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `bulk_cards_lookup` and `scryfall_cards_collection`: batch exact-name lookup (oracle text,
+  colour identity, Commander legality) in one call; the live version uses `POST /cards/collection`
+  in chunks of 75 and works when bulk data is down.
+- `bulk_collection_filter`: filter a list of owned card names by colour identity, type, rules text
+  and Commander legality; lists unresolved names.
+- `scryfall_search_cards` gains `include_text` to show oracle text and colour identity per result.
+- `spellbook_find_decklist_combos` gains `limit` and `max_missing`; almost-included combos are
+  sorted by fewest missing cards and name the missing cards.
+- `ping(deep=True)` reports whether the Scryfall bulk data is loaded (card count and age).
+
 ### Fixed
 
 - `suggest_sideboard` now filters sideboard candidates by the deck's color identity,

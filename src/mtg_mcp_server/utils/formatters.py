@@ -40,6 +40,22 @@ def format_card_line(card: Card, *, response_format: ResponseFormat = "detailed"
     return f"  {card.name} {card.mana_cost or ''} — {card.type_line}{price}"
 
 
+def format_card_rules_line(card: Card) -> str:
+    """Format a card as one compact block with rules text and Commander legality.
+
+    Built for batch tools: oracle text, colour identity and legality in a few
+    lines per card so dozens of cards fit in one response.
+    """
+    identity = "".join(card.color_identity) or "C"
+    legal = card.legalities.get("commander", "unknown")
+    text = (card.oracle_text or "").replace("\n", " / ")
+    pt = f" {card.power}/{card.toughness}" if card.power is not None else ""
+    return (
+        f"- **{card.name}** {card.mana_cost or ''} — {card.type_line}{pt}"
+        f" | CI: {identity} | Commander: {legal}\n  {text}"
+    )
+
+
 def format_card_detail(card: Card, *, response_format: ResponseFormat = "detailed") -> list[str]:
     """Format full card details as a list of lines.
 

@@ -77,6 +77,30 @@ class ScryfallClient(BaseClient):
             raise ScryfallError(exc.message, status_code=exc.status_code) from exc
         return Card.model_validate(response.json())
 
+    async def get_cards_collection(self, names: list[str]) -> tuple[list[Card], list[str]]:
+        """Look up many cards by exact name via ``POST /cards/collection``.
+
+        Scryfall accepts at most 75 identifiers per request, so longer lists
+        are sent in chunks. Returns ``(found_cards, not_found_names)``.
+
+        Raises:
+            ScryfallError: On API errors.
+        """
+        found: list[Card] = []
+        missing: list[str] = []
+        for start in range(0, len(names), 75):
+            chunk = names[start : start + 75]
+            try:
+                response = await self._post(
+                    "/cards/collection", json={"identifiers": [{"name": n} for n in chunk]}
+                )
+            except ServiceError as exc:
+                raise ScryfallError(exc.message, status_code=exc.status_code) from exc
+            payload = response.json()
+            found.extend(Card.model_validate(c) for c in payload.get("data", []))
+            missing.extend(str(item.get("name", "")) for item in payload.get("not_found", []))
+        return found, missing
+
     @async_cached(_search_cache, key=_method_key)
     async def search_cards(self, query: str, page: int = 1) -> CardSearchResult:
         """Search for cards using Scryfall syntax.

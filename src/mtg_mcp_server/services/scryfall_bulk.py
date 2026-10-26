@@ -204,6 +204,15 @@ class ScryfallBulkClient:
                     return
                 raise
 
+    def status(self) -> dict[str, int | float | bool | None]:
+        """Report load state without triggering a download (for health checks)."""
+        loaded = self._loaded_at > 0
+        return {
+            "loaded": loaded,
+            "card_count": len(self._unique_cards),
+            "age_seconds": round(time.monotonic() - self._loaded_at) if loaded else None,
+        }
+
     async def get_card(self, name: str) -> Card | None:
         """Look up a card by exact name (case-insensitive).
 

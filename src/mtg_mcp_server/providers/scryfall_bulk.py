@@ -36,7 +36,11 @@ from mtg_mcp_server.services.mtggoldfish import MTGGoldfishError
 from mtg_mcp_server.services.scryfall_bulk import ScryfallBulkClient, ScryfallBulkError
 from mtg_mcp_server.utils.color_identity import is_within_identity, parse_color_identity
 from mtg_mcp_server.utils.format_rules import get_format_rules
-from mtg_mcp_server.utils.formatters import ResponseFormat, format_card_detail
+from mtg_mcp_server.utils.formatters import (
+    ResponseFormat,
+    format_card_detail,
+    format_card_rules_line,
+)
 from mtg_mcp_server.utils.query_parser import parse_query
 from mtg_mcp_server.utils.slim import slim_card
 
@@ -179,6 +183,132 @@ async def card_lookup(
         )
         + ATTRIBUTION_SCRYFALL_BULK,
         structured_content=card.model_dump(mode="json"),
+    )
+
+
+@scryfall_bulk_mcp.tool(annotations=TOOL_ANNOTATIONS, tags=TAGS_LOOKUP)
+async def cards_lookup(
+    names: Annotated[
+        list[str],
+        Field(description="Exact card names (case-insensitive) to look up in one call"),
+    ],
+) -> ToolResult:
+    """Look up many cards by exact name at once using Scryfall bulk data.
+
+    Returns oracle text, colour identity and Commander legality for each card,
+    plus the names that were not found. Rate-limit-free; replaces many
+    ``card_lookup`` calls.
+    """
+    if not names:
+        raise ToolError("Provide at least one card name.")
+    client = _get_client()
+    try:
+        results = await client.get_cards(names)
+    except ScryfallBulkError as exc:
+        raise ToolError(f"Scryfall bulk data error: {exc}") from exc
+
+    found = [card for card in results.values() if card is not None]
+    missing = [name for name, card in results.items() if card is None]
+    lines = [f"Found {len(found)} of {len(names)} cards:"]
+    lines.extend(format_card_rules_line(card) for card in found)
+    if missing:
+        lines.append(f"\nNot found ({len(missing)}): {', '.join(missing)}")
+    return ToolResult(
+        content="\n".join(lines) + ATTRIBUTION_SCRYFALL_BULK,
+        structured_content={
+            "found": [slim_card(card) for card in found],
+            "not_found": missing,
+        },
+    )
+
+
+@scryfall_bulk_mcp.tool(annotations=TOOL_ANNOTATIONS, tags=TAGS_SEARCH)
+async def collection_filter(
+    names: Annotated[
+        list[str],
+        Field(description="Card names you own (e.g. exported from your collection app)"),
+    ],
+    color_identity: Annotated[
+        str,
+        Field(
+            description="Commander colour identity the cards must fit within "
+            "(e.g. 'BR', 'rakdos', 'mono black' is 'B'); empty for no colour filter"
+        ),
+    ] = "",
+    type_contains: Annotated[
+        list[str] | None,
+        Field(description="Type-line substrings, ALL required (e.g. ['Vampire'])"),
+    ] = None,
+    text_contains: Annotated[
+        list[str] | None,
+        Field(description="Oracle-text substrings, ALL required (e.g. ['sacrifice'])"),
+    ] = None,
+    commander_legal_only: Annotated[
+        bool, Field(description="Only keep cards legal in Commander")
+    ] = True,
+    limit: Annotated[int, Field(description="Maximum cards to return")] = 50,
+    response_format: Annotated[
+        ResponseFormat,
+        Field(description="'detailed' shows oracle text; 'concise' shows one line per card"),
+    ] = "concise",
+) -> ToolResult:
+    """Filter a list of cards you own by colour identity, type and rules text.
+
+    Resolves each name against bulk data, then keeps only cards that fit the
+    requested identity and text filters. Use it to see what your collection can
+    do for a given commander or theme. Unresolved names are listed so you can
+    fix typos.
+    """
+    if not names:
+        raise ToolError("Provide at least one card name.")
+    if limit < 1:
+        raise ToolError(f"limit must be >= 1, got {limit}")
+    try:
+        identity = parse_color_identity(color_identity) if color_identity.strip() else None
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+
+    client = _get_client()
+    try:
+        results = await client.get_cards(names)
+    except ScryfallBulkError as exc:
+        raise ToolError(f"Scryfall bulk data error: {exc}") from exc
+
+    unresolved = [name for name, card in results.items() if card is None]
+    seen: set[str] = set()
+    matches: list[Card] = []
+    for card in results.values():
+        if card is None or card.name in seen:
+            continue
+        seen.add(card.name)
+        if identity is not None and not is_within_identity(card.color_identity, identity):
+            continue
+        if commander_legal_only and card.legalities.get("commander") not in ("legal", "restricted"):
+            continue
+        type_line = card.type_line.lower()
+        if type_contains and not all(t.lower() in type_line for t in type_contains):
+            continue
+        text = (card.oracle_text or "").lower()
+        if text_contains and not all(t.lower() in text for t in text_contains):
+            continue
+        matches.append(card)
+
+    shown = matches[:limit]
+    lines = [f"{len(matches)} of {len(seen)} resolved cards match (showing {len(shown)}):"]
+    for card in shown:
+        if response_format == "detailed":
+            lines.append(format_card_rules_line(card))
+        else:
+            lines.append(f"- {card.name} {card.mana_cost or ''} — {card.type_line}")
+    if unresolved:
+        lines.append(f"\nUnresolved names ({len(unresolved)}): {', '.join(unresolved)}")
+    return ToolResult(
+        content="\n".join(lines) + ATTRIBUTION_SCRYFALL_BULK,
+        structured_content={
+            "total_matches": len(matches),
+            "cards": [slim_card(card) for card in shown],
+            "unresolved": unresolved,
+        },
     )
 
 
