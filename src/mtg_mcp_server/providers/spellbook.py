@@ -267,23 +267,24 @@ async def estimate_bracket(
 
     lines = [f"**Bracket Estimate:** {result.bracket_tag or 'Unknown'}"]
 
-    if result.banned_cards:
-        lines.append(f"Banned cards: {', '.join(result.banned_cards)}")
-    if result.game_changer_cards:
-        lines.append(f"Game-changer cards: {', '.join(result.game_changer_cards)}")
-    if result.two_card_combos:
-        lines.append(f"Two-card combos: {', '.join(str(c) for c in result.two_card_combos)}")
-    if result.lock_combos:
-        lines.append(f"Lock combos: {', '.join(str(c) for c in result.lock_combos)}")
+    sections = [
+        ("Banned cards", result.banned_cards),
+        ("Game-changer cards", result.game_changer_cards),
+        ("Two-card combos", result.two_card_combos),
+        ("Lock combos", result.lock_combos),
+        ("Extra-turn cards", result.extra_turn_cards),
+        ("Extra-turn combos", result.extra_turn_combos),
+        ("Mass land denial cards", result.mass_land_denial_cards),
+        ("Mass land denial combos", result.mass_land_denial_combos),
+        ("Control-all-opponents combos", result.control_all_opponents_combos),
+        ("Control-some-opponents combos", result.control_some_opponents_combos),
+        ("Skip-turn combos", result.skip_turns_combos),
+    ]
+    found = [(label, items) for label, items in sections if items]
+    for label, items in found:
+        lines.append(f"{label}: {', '.join(str(i) for i in items)}")
 
-    if not any(
-        [
-            result.banned_cards,
-            result.game_changer_cards,
-            result.two_card_combos,
-            result.lock_combos,
-        ]
-    ):
+    if not found:
         lines.append("No bracket-relevant concerns found.")
 
     return ToolResult(

@@ -186,6 +186,29 @@ class TestEstimateBracket:
         assert "banned_cards" in sc
         assert "two_card_combos" in sc
 
+    @respx.mock
+    async def test_reports_extra_turns_and_land_denial(self, client: Client):
+        """Extra-turn / mass-land-denial findings show up in text and structured output."""
+        fixture = _load_fixture("estimate_bracket_response.json")
+        fixture["bracketTag"] = "P"
+        fixture["extraTurnCards"] = [{"name": "Time Warp"}]
+        fixture["massLandDenialCards"] = [{"name": "Armageddon"}]
+        fixture["skipTurnsCombos"] = [{"cards": [{"name": "Stasis"}, {"name": "Paradox Haze"}]}]
+        respx.post(f"{BASE_URL}/estimate-bracket").mock(
+            return_value=httpx.Response(200, json=fixture)
+        )
+
+        result = await client.call_tool(
+            "estimate_bracket",
+            {"commanders": ["Muldrotha, the Gravetide"], "decklist": ["Time Warp"]},
+        )
+        text = result.content[0].text
+        assert "Extra-turn cards: Time Warp" in text
+        assert "Mass land denial cards: Armageddon" in text
+        assert "Skip-turn combos: Stasis + Paradox Haze" in text
+        assert "No bracket-relevant concerns found." not in text
+        assert result.structured_content["extra_turn_cards"] == ["Time Warp"]
+
 
 class TestToolRegistration:
     """Spellbook provider tool registration."""

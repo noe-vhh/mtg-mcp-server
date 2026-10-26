@@ -210,6 +210,31 @@ class TestEstimateBracket:
         assert result.two_card_combos == ["Some combo"]
         assert result.lock_combos == ["Lock combo"]
 
+    def test_bracket_parses_extra_turn_land_denial_and_control_fields(self):
+        """Fields that decide Bracket 1-2 eligibility are kept, not dropped."""
+        data = {
+            "bracketTag": "P",
+            "extraTurnCards": [{"name": "Time Warp"}],
+            "massLandDenialCards": [{"name": "Armageddon"}],
+            "extraTurnsCombos": [
+                {"cards": [{"name": "Archaeomancer"}, {"name": "Temporal Mastery"}]}
+            ],
+            "massLandDenialCombos": ["Land combo"],
+            "controlAllOpponentsCombos": [{"cards": [{"name": "A"}, {"name": "B"}]}],
+            "controlSomeOpponentsCombos": [],
+            "skipTurnsCombos": [{"cards": [{"name": "Stasis"}]}],
+            "lockCombos": [{"cards": [{"name": "Winter Orb"}, {"name": "Static Orb"}]}],
+        }
+        result = BracketEstimate.model_validate(data)
+        assert result.extra_turn_cards == ["Time Warp"]
+        assert result.mass_land_denial_cards == ["Armageddon"]
+        assert result.extra_turn_combos == ["Archaeomancer + Temporal Mastery"]
+        assert result.mass_land_denial_combos == ["Land combo"]
+        assert result.control_all_opponents_combos == ["A + B"]
+        assert result.control_some_opponents_combos == []
+        assert result.skip_turns_combos == ["Stasis"]
+        assert result.lock_combos == ["Winter Orb + Static Orb"]
+
 
 class TestSpellbookServerErrors:
     """Spellbook API server error handling."""

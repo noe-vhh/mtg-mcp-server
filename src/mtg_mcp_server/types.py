@@ -242,16 +242,44 @@ class BracketEstimate(BaseModel):
     game_changer_cards: list[str] = Field(default_factory=list, alias="gameChangerCards")
     two_card_combos: list[str] = Field(default_factory=list, alias="twoCardCombos")
     lock_combos: list[str] = Field(default_factory=list, alias="lockCombos")
+    # Findings that decide Bracket 1-2 eligibility (extra turns, mass land denial,
+    # taking control of / skipping opponents' turns).
+    extra_turn_cards: list[str] = Field(default_factory=list, alias="extraTurnCards")
+    extra_turn_combos: list[str] = Field(default_factory=list, alias="extraTurnsCombos")
+    mass_land_denial_cards: list[str] = Field(default_factory=list, alias="massLandDenialCards")
+    mass_land_denial_combos: list[str] = Field(default_factory=list, alias="massLandDenialCombos")
+    control_all_opponents_combos: list[str] = Field(
+        default_factory=list, alias="controlAllOpponentsCombos"
+    )
+    control_some_opponents_combos: list[str] = Field(
+        default_factory=list, alias="controlSomeOpponentsCombos"
+    )
+    skip_turns_combos: list[str] = Field(default_factory=list, alias="skipTurnsCombos")
 
     model_config = {"populate_by_name": True}
 
-    @field_validator("banned_cards", "game_changer_cards", "lock_combos", mode="before")
+    @field_validator(
+        "banned_cards",
+        "game_changer_cards",
+        "extra_turn_cards",
+        "mass_land_denial_cards",
+        mode="before",
+    )
     @classmethod
     def _extract_card_names(cls, v: list) -> list[str]:
         """Extract card names from card dicts, keep strings as-is."""
         return [item.get("name", str(item)) if isinstance(item, dict) else str(item) for item in v]
 
-    @field_validator("two_card_combos", mode="before")
+    @field_validator(
+        "two_card_combos",
+        "lock_combos",
+        "extra_turn_combos",
+        "mass_land_denial_combos",
+        "control_all_opponents_combos",
+        "control_some_opponents_combos",
+        "skip_turns_combos",
+        mode="before",
+    )
     @classmethod
     def _extract_combo_descriptions(cls, v: list) -> list[str]:
         """Extract card names from combo variant dicts, keep strings as-is."""
