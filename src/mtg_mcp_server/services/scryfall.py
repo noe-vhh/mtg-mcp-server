@@ -102,12 +102,23 @@ class ScryfallClient(BaseClient):
         return found, missing
 
     @async_cached(_search_cache, key=_method_key)
-    async def search_cards(self, query: str, page: int = 1) -> CardSearchResult:
+    async def search_cards(
+        self,
+        query: str,
+        page: int = 1,
+        *,
+        order: str | None = None,
+        direction: str | None = None,
+    ) -> CardSearchResult:
         """Search for cards using Scryfall syntax.
 
         Args:
             query: Scryfall search query (e.g. ``"f:commander id:sultai"``).
             page: Results page number (1-indexed).
+            order: Optional Scryfall sort order (e.g. ``"released"``, ``"cmc"``,
+                ``"edhrec"``). Omitted by default, which keeps Scryfall's own
+                ordering (name).
+            direction: Optional sort direction, ``"asc"`` or ``"desc"``.
 
         Returns:
             Paginated search results with card list and ``has_more`` flag.
@@ -117,7 +128,12 @@ class ScryfallClient(BaseClient):
             ScryfallError: On other API errors.
         """
         try:
-            response = await self._get("/cards/search", params={"q": query, "page": str(page)})
+            params = {"q": query, "page": str(page)}
+            if order:
+                params["order"] = order
+            if direction:
+                params["dir"] = direction
+            response = await self._get("/cards/search", params=params)
         except ServiceError as exc:
             if exc.status_code == 404:
                 raise CardNotFoundError(

@@ -348,7 +348,7 @@ async def whats_new(
 
     client = _get_client()
     try:
-        result = await client.search_cards(query)
+        result = await client.search_cards(query, order="released", direction="desc")
     except CardNotFoundError as exc:
         raise ToolError(
             f"No new cards found in the last {days} day(s)"

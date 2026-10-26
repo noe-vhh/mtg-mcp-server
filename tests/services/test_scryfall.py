@@ -90,6 +90,34 @@ class TestSearchCards:
     """Card search using Scryfall query syntax."""
 
     @respx.mock
+    async def test_order_and_direction_are_sent_when_given(self):
+        """order/direction become Scryfall's `order` and `dir` query params."""
+        fixture = _load_fixture("search_sultai_commander.json")
+        route = respx.get(f"{BASE_URL}/cards/search").mock(
+            return_value=httpx.Response(200, json=fixture)
+        )
+        async with ScryfallClient(base_url=BASE_URL) as client:
+            await client.search_cards("date>=2026-01-01", order="released", direction="desc")
+
+        params = route.calls.last.request.url.params
+        assert params["order"] == "released"
+        assert params["dir"] == "desc"
+
+    @respx.mock
+    async def test_order_params_omitted_by_default(self):
+        """Existing callers keep Scryfall's default ordering (no extra params)."""
+        fixture = _load_fixture("search_sultai_commander.json")
+        route = respx.get(f"{BASE_URL}/cards/search").mock(
+            return_value=httpx.Response(200, json=fixture)
+        )
+        async with ScryfallClient(base_url=BASE_URL) as client:
+            await client.search_cards("t:creature")
+
+        params = route.calls.last.request.url.params
+        assert "order" not in params
+        assert "dir" not in params
+
+    @respx.mock
     async def test_returns_search_result(self):
         """Search returns a CardSearchResult with pagination and Card models."""
         fixture = _load_fixture("search_sultai_commander.json")

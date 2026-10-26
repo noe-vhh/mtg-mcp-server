@@ -297,6 +297,20 @@ class TestWhatsNew:
     """Scryfall whats_new tool behavior."""
 
     @respx.mock
+    async def test_requests_newest_first(self, client: Client):
+        """whats_new asks Scryfall for newest releases first, not alphabetical."""
+        fixture = _load_fixture("search_sultai_commander.json")
+        route = respx.get(f"{BASE_URL}/cards/search").mock(
+            return_value=httpx.Response(200, json=fixture)
+        )
+
+        await client.call_tool("whats_new", {"days": 30})
+
+        params = route.calls.last.request.url.params
+        assert params["order"] == "released"
+        assert params["dir"] == "desc"
+
+    @respx.mock
     async def test_returns_recent_cards(self, client: Client):
         """whats_new returns a formatted list of recently released cards."""
         fixture = _load_fixture("search_sultai_commander.json")
