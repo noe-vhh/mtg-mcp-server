@@ -235,6 +235,52 @@ class TestEstimateBracket:
         assert result.skip_turns_combos == ["Stasis"]
         assert result.lock_combos == ["Winter Orb + Static Orb"]
 
+    def test_bracket_derives_findings_from_per_card_flags(self):
+        """Current Spellbook responses list `cards` with boolean flags, not per-category lists.
+
+        Shape captured from the live /estimate-bracket API (Oct 2026).
+        """
+
+        def card(name: str, **flags: bool) -> dict:
+            base = {"banned": False, "gameChanger": False, "massLandDenial": False}
+            return {
+                "card": {"id": 1, "name": name, "typeLine": "Sorcery"},
+                "quantity": 1,
+                "extraTurn": False,
+                **base,
+                **flags,
+            }
+
+        data = {
+            "bracketTag": "R",
+            "cards": [
+                card("Time Warp", extraTurn=True),
+                card("Armageddon", massLandDenial=True),
+                card("Mana Crypt", gameChanger=True),
+                card("Black Lotus", banned=True),
+                card("Edgar Markov"),
+            ],
+            "combos": [],
+        }
+        result = BracketEstimate.model_validate(data)
+        assert result.bracket_tag == "R"
+        assert result.extra_turn_cards == ["Time Warp"]
+        assert result.mass_land_denial_cards == ["Armageddon"]
+        assert result.game_changer_cards == ["Mana Crypt"]
+        assert result.banned_cards == ["Black Lotus"]
+
+    def test_bracket_explicit_lists_win_over_card_flags(self):
+        """Older-style explicit lists are kept when present."""
+        data = {
+            "bracketTag": "P",
+            "gameChangerCards": ["Sol Ring"],
+            "cards": [
+                {"card": {"name": "Mana Crypt"}, "gameChanger": True},
+            ],
+        }
+        result = BracketEstimate.model_validate(data)
+        assert result.game_changer_cards == ["Sol Ring"]
+
 
 class TestSpellbookServerErrors:
     """Spellbook API server error handling."""

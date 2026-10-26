@@ -229,6 +229,17 @@ class DecklistCombos(BaseModel):
     almost_included: list[Combo] = Field(default_factory=list)
 
 
+# Maps the per-card boolean flags in Spellbook's current /estimate-bracket
+# response ({"cards": [{"card": {...}, "extraTurn": true, ...}]}) onto the
+# BracketEstimate list fields. The old per-category lists are gone from it.
+_BRACKET_CARD_FLAGS = {
+    "banned": "bannedCards",
+    "gameChanger": "gameChangerCards",
+    "massLandDenial": "massLandDenialCards",
+    "extraTurn": "extraTurnCards",
+}
+
+
 class BracketEstimate(BaseModel):
     """Result of ``/estimate-bracket`` — bracket estimation for a decklist.
 
@@ -257,6 +268,26 @@ class BracketEstimate(BaseModel):
     skip_turns_combos: list[str] = Field(default_factory=list, alias="skipTurnsCombos")
 
     model_config = {"populate_by_name": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_from_card_flags(cls, data: object) -> object:
+        """Build the card-name lists from per-card flags when the API gives `cards`."""
+        if not isinstance(data, dict) or not isinstance(data.get("cards"), list):
+            return data
+        derived: dict[str, list[str]] = {key: [] for key in _BRACKET_CARD_FLAGS.values()}
+        for entry in data["cards"]:
+            if not isinstance(entry, dict):
+                continue
+            card = entry.get("card")
+            name = card.get("name") if isinstance(card, dict) else None
+            if not name:
+                continue
+            for flag, key in _BRACKET_CARD_FLAGS.items():
+                if entry.get(flag) is True:
+                    derived[key].append(str(name))
+        # Explicit lists in the payload (older response style) take precedence.
+        return {**{k: v for k, v in derived.items() if v}, **data}
 
     @field_validator(
         "banned_cards",

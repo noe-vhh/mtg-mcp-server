@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `spellbook_estimate_bracket` parses Spellbook's current response, which lists `cards` with
+  per-card flags (`banned`, `gameChanger`, `massLandDenial`, `extraTurn`) instead of the old
+  per-category lists. Previously every finding came back empty even when the tag was `R`.
 - EDHREC `total_decks` was `0` for live commander pages that omit the top-level deck count; it now
   falls back to the largest per-card `potential_decks`.
 - `commander_overview` staples no longer list basic lands and no longer repeat a card that appears
