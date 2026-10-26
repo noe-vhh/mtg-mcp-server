@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import difflib
 import gzip
 import json
 import random
@@ -224,6 +225,25 @@ class ScryfallBulkClient:
         """
         await self.ensure_loaded()
         return self._cards.get(name.lower())
+
+    async def suggest_names(self, name: str, n: int = 3, cutoff: float = 0.8) -> list[str]:
+        """Suggest card names close to ``name`` (typos, near-misses).
+
+        Uses ``difflib`` similarity over every loaded card name, so it is meant
+        for the few names that missed an exact lookup, not for bulk use.
+
+        Args:
+            name: The name that did not match exactly.
+            n: Maximum suggestions to return.
+            cutoff: Minimum similarity ratio (0-1) for a suggestion.
+
+        Returns:
+            Canonical card names, most similar first. Empty if nothing is close.
+        """
+        await self.ensure_loaded()
+        by_lower = {card.name.lower(): card.name for card in self._unique_cards}
+        matches = difflib.get_close_matches(name.lower(), by_lower, n=n, cutoff=cutoff)
+        return [by_lower[m] for m in matches]
 
     async def search_cards(self, query: str, limit: int = 20) -> list[Card]:
         """Search cards by name substring (case-insensitive).

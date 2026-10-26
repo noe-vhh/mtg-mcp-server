@@ -26,6 +26,16 @@ Get full details for a card by exact or fuzzy name.
 | Backend | `ScryfallClient.get_card_by_name()` |
 | Annotations | readOnly=true, idempotent=true, openWorld=true |
 
+### `scryfall_cards_collection`
+Batch exact-name lookup via Scryfall's `POST /cards/collection` (works when bulk data is down).
+
+| Field | Detail |
+|-------|--------|
+| Input | `names: list[str]` (max 150; requested in chunks of 75) |
+| Output | Same compact per-card lines as `bulk_cards_lookup`, plus names not found |
+| Backend | `ScryfallClient.get_cards_collection()` |
+| Annotations | readOnly=true, idempotent=true, openWorld=true |
+
 ### `scryfall_card_price`
 Get current prices for a card.
 
@@ -62,7 +72,7 @@ Get recently released or previewed cards.
 | Field | Detail |
 |-------|--------|
 | Input | `days: int = 30` |
-| Output | List of recently released cards with names, sets, rarities |
+| Output | List of recently released cards with names, sets, rarities, newest first |
 | Backend | `ScryfallClient.search_cards()` (date filter) |
 | Annotations | readOnly=true, idempotent=true, openWorld=true |
 
@@ -106,7 +116,7 @@ Estimate the Commander bracket for a decklist based on its combo density.
 | Field | Detail |
 |-------|--------|
 | Input | `commanders: list[str]`, `decklist: list[str]` (card names) |
-| Output | Bracket tag, banned cards, game-changer cards, two-card combos, lock combos |
+| Output | Bracket tag, banned cards, game-changer cards, two-card combos, lock combos, extra-turn cards/combos, mass-land-denial cards/combos, control-opponent combos, skip-turn combos |
 | Backend | `SpellbookClient.estimate_bracket()` |
 | Annotations | readOnly=true, idempotent=true, openWorld=true |
 
@@ -305,6 +315,26 @@ Look up a Magic card by exact name using Scryfall bulk data. Rate-limit-free.
 | Backend | `ScryfallBulkClient.get_card()` |
 | Annotations | readOnly=true, idempotent=true, openWorld=true |
 
+### `bulk_cards_lookup`
+Look up many cards by exact name in one call. Rate-limit-free.
+
+| Field | Detail |
+|-------|--------|
+| Input | `names: list[str]` (case-insensitive exact names) |
+| Output | One compact line per card (cost, type, P/T, colour identity, Commander legality, oracle text); names not found, with "did you mean" suggestions for near-misses (up to 20 misses per call) |
+| Backend | `ScryfallBulkClient.get_cards()` + `suggest_names()` |
+| Annotations | readOnly=true, idempotent=true, openWorld=true |
+
+### `bulk_collection_filter`
+Filter a list of owned card names by colour identity, type, rules text and Commander legality.
+
+| Field | Detail |
+|-------|--------|
+| Input | `names: list[str]`, `color_identity: str = ""` (cards must fit within it), `type_contains: list[str] \| None`, `text_contains: list[str] \| None`, `commander_legal_only: bool = True`, `limit: int = 50`, `response_format: "detailed" \| "concise" = "concise"` |
+| Output | Matching cards from the supplied names, plus the names that could not be resolved |
+| Backend | `ScryfallBulkClient.get_cards()` |
+| Annotations | readOnly=true, idempotent=true, openWorld=true |
+
 ### `bulk_card_search`
 Search for Magic cards in Scryfall bulk data by name, type, or oracle text. Rate-limit-free.
 
@@ -402,7 +432,7 @@ Comprehensive data for a commander from all available sources.
 
 | Field | Detail |
 |-------|--------|
-| Input | `commander_name: str` |
+| Input | `commander_name: str`, `limit: int = 10` (max EDHREC staples, 0 for none), `response_format: "detailed" \| "concise" = "detailed"` |
 | Output | Markdown with: card header (name, mana cost, type, text, color identity, P/T, rarity, EDHREC rank), top 5 combos (card lists + results), top 10 EDHREC staples (by inclusion, with synergy), Data Sources footer |
 | Backends | Scryfall (required) + Spellbook (optional) + EDHREC (optional) |
 | Partial failure | Scryfall failure propagates. Spellbook/EDHREC failures noted in output, available data still returned |

@@ -59,9 +59,25 @@ async def bulk_client():
         return {n: POOL.get(n) for n in names}
 
     mock.get_cards = AsyncMock(side_effect=get_cards)
+
+    async def suggest_names(name: str, n: int = 3) -> list[str]:
+        return ["Markov Purifier"] if name == "Markov Purifer" else []
+
+    mock.suggest_names = AsyncMock(side_effect=suggest_names)
     with patch("mtg_mcp_server.providers.scryfall_bulk.ScryfallBulkClient", return_value=mock):
         async with Client(transport=scryfall_bulk_mcp) as c:
             yield c
+
+
+class TestBulkCardsLookupSuggestions:
+    async def test_misses_get_did_you_mean(self, bulk_client: Client):
+        result = await bulk_client.call_tool(
+            "cards_lookup", {"names": ["Markov Purifer", "Zzzz Nothing"]}
+        )
+        text = result.content[0].text
+        assert "Markov Purifer -> did you mean: Markov Purifier" in text
+        assert "Zzzz Nothing" in text
+        assert result.structured_content["suggestions"] == {"Markov Purifer": ["Markov Purifier"]}
 
 
 class TestBulkCardsLookup:

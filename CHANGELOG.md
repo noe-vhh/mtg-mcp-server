@@ -18,9 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `spellbook_find_decklist_combos` gains `limit` and `max_missing`; almost-included combos are
   sorted by fewest missing cards and name the missing cards.
 - `ping(deep=True)` reports whether the Scryfall bulk data is loaded (card count and age).
+- `commander_overview` gains `limit` (max EDHREC staples, default 10, 0 for none). Concise mode now
+  lists the top staples on one line and trims `structured_content` to match.
+- `bulk_cards_lookup` suggests close names ("did you mean") for names that miss an exact lookup.
+- `spellbook_estimate_bracket` reports extra-turn, mass-land-denial, control-opponent and skip-turn
+  findings, which decide Bracket 1-2 eligibility (previously parsed away).
+- `ScryfallClient.search_cards` accepts optional `order` / `direction`.
 
 ### Fixed
 
+- EDHREC `total_decks` was `0` for live commander pages that omit the top-level deck count; it now
+  falls back to the largest per-card `potential_decks`.
+- `commander_overview` staples no longer list basic lands and no longer repeat a card that appears
+  in several EDHREC categories.
+- `scryfall_whats_new` returns the newest releases first instead of alphabetical order.
 - `suggest_sideboard` now filters sideboard candidates by the deck's color identity,
   preventing off-color recommendations. Colorless cards still pass the filter.
   Empty categories after filtering are reported in `data["empty_categories"]` and

@@ -1236,3 +1236,34 @@ class TestRandomCard:
         card = await loaded_client.random_card(color_identity=frozenset({"R"}))
         if card is not None:
             assert frozenset(card.color_identity).issubset({"R"})
+
+
+class TestSuggestNames:
+    """Close-name suggestions for lookups that miss."""
+
+    @staticmethod
+    def _client_with(names: list[str]) -> ScryfallBulkClient:
+        from mtg_mcp_server.types import Card
+
+        client = ScryfallBulkClient(base_url=_BASE_URL)
+        cards = [Card(id=f"id-{n}", name=n) for n in names]
+        client._unique_cards = cards
+        client._cards = {c.name.lower(): c for c in cards}
+        return client
+
+    async def test_suggests_close_spelling(self):
+        client = self._client_with(["Sol Ring", "Soul Ring", "Lightning Bolt"])
+        with patch.object(client, "ensure_loaded", return_value=None):
+            result = await client.suggest_names("Sol Rng")
+        assert result[0] == "Sol Ring"
+        assert "Lightning Bolt" not in result
+
+    async def test_ignores_case_and_returns_canonical_name(self):
+        client = self._client_with(["Blood Artist"])
+        with patch.object(client, "ensure_loaded", return_value=None):
+            assert await client.suggest_names("blood artst") == ["Blood Artist"]
+
+    async def test_returns_empty_when_nothing_is_close(self):
+        client = self._client_with(["Sol Ring", "Lightning Bolt"])
+        with patch.object(client, "ensure_loaded", return_value=None):
+            assert await client.suggest_names("Completely Different") == []

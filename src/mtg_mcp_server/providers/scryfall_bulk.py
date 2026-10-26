@@ -66,6 +66,8 @@ if TYPE_CHECKING:
     from mtg_mcp_server.types import Card
 
 # Module-level client set by the lifespan. See scryfall.py for pattern rationale.
+_MAX_SUGGESTIONS = 20  # fuzzy matching scans all card names; cap per call
+
 _client: ScryfallBulkClient | None = None
 
 
@@ -209,15 +211,28 @@ async def cards_lookup(
 
     found = [card for card in results.values() if card is not None]
     missing = [name for name, card in results.items() if card is None]
+
+    # Offer "did you mean" for near-misses. Fuzzy matching scans every card
+    # name, so cap how many misses we spend it on.
+    suggestions: dict[str, list[str]] = {}
+    for name in missing[:_MAX_SUGGESTIONS]:
+        close = await client.suggest_names(name)
+        if close:
+            suggestions[name] = close
+
     lines = [f"Found {len(found)} of {len(names)} cards:"]
     lines.extend(format_card_rules_line(card) for card in found)
     if missing:
         lines.append(f"\nNot found ({len(missing)}): {', '.join(missing)}")
+        lines.extend(
+            f"  {name} -> did you mean: {', '.join(close)}" for name, close in suggestions.items()
+        )
     return ToolResult(
         content="\n".join(lines) + ATTRIBUTION_SCRYFALL_BULK,
         structured_content={
             "found": [slim_card(card) for card in found],
             "not_found": missing,
+            "suggestions": suggestions,
         },
     )
 
