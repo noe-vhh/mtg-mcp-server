@@ -330,6 +330,70 @@ class TestEstimateBracket:
         result = BracketEstimate.model_validate(data)
         assert result.combos == []
 
+    def test_bracket_categorises_combos_from_spellbook_flags(self):
+        """Each combo entry carries Spellbook's own classification flags (live shape, Oct 2026)."""
+
+        def entry(names: list[str], tag: str = "E", **flags: object) -> dict:
+            base = {
+                "relevant": False,
+                "borderlineRelevant": False,
+                "arguablyTwoCard": False,
+                "definitelyTwoCard": False,
+                "speed": 5,
+                "massLandDenial": False,
+                "extraTurn": False,
+                "lock": False,
+                "skipTurns": False,
+                "controlAllOpponents": False,
+                "controlSomeOpponents": False,
+            }
+            return {
+                "combo": {
+                    "uses": [{"card": {"name": n}} for n in names],
+                    "requires": [],
+                    "bracketTag": tag,
+                },
+                **base,
+                **flags,
+            }
+
+        data = {
+            "bracketTag": "R",
+            "cards": [],
+            "combos": [
+                entry(["Thassa's Oracle", "Demonic Consultation"], "R", definitelyTwoCard=True),
+                entry(["Winter Orb", "Static Orb"], "S", lock=True),
+                entry(["Armageddon", "Mana Vault", "Sol Ring"], "R", massLandDenial=True),
+                entry(["Time Warp", "Archaeomancer", "Temporal Mastery"], "R", extraTurn=True),
+                entry(["Stasis", "Paradox Haze"], "S", skipTurns=True),
+                entry(["Mindslaver", "Academy Ruins"], "S", controlAllOpponents=True),
+                entry(["Sorin", "Vito", "Altar"], "P", controlSomeOpponents=True, relevant=True),
+                entry(["Edgar Markov", "Oathsworn Vampire", "Phyrexian Altar"], "E"),
+            ],
+        }
+        result = BracketEstimate.model_validate(data)
+        assert result.two_card_combos == ["Thassa's Oracle + Demonic Consultation"]
+        assert result.lock_combos == ["Winter Orb + Static Orb"]
+        assert result.mass_land_denial_combos == ["Armageddon + Mana Vault + Sol Ring"]
+        assert result.extra_turn_combos == ["Time Warp + Archaeomancer + Temporal Mastery"]
+        assert result.skip_turns_combos == ["Stasis + Paradox Haze"]
+        assert result.control_all_opponents_combos == ["Mindslaver + Academy Ruins"]
+        assert result.control_some_opponents_combos == ["Sorin + Vito + Altar"]
+        assert result.relevant_combos == ["Sorin + Vito + Altar [P]"]
+        assert len(result.combos) == 8
+
+    def test_bracket_two_card_flag_beats_card_count(self):
+        """A two-card combo is what Spellbook says (definitelyTwoCard), not len(uses) == 2."""
+        data = {
+            "combos": [
+                {
+                    "combo": {"uses": [{"card": {"name": "A"}}, {"card": {"name": "B"}}]},
+                    "definitelyTwoCard": False,
+                }
+            ]
+        }
+        assert BracketEstimate.model_validate(data).two_card_combos == []
+
 
 class TestSpellbookServerErrors:
     """Spellbook API server error handling."""

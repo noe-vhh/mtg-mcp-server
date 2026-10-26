@@ -35,7 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-category lists. Previously every finding came back empty even when the tag was `R`.
 - `spellbook_estimate_bracket` now lists every combo Spellbook finds in the deck (including combos
   that use the commander), read from the response's `combos` entries; two-card combos are derived
-  from them.
+  from them. Lock, mass-land-denial, extra-turn, skip-turn and control combos, and the combos
+  Spellbook marks as bracket-relevant, come from the per-combo flags Spellbook now returns.
 - EDHREC `total_decks` was `0` for live commander pages that omit the top-level deck count; it now
   falls back to the largest per-card `potential_decks`.
 - `commander_overview` staples no longer list basic lands and no longer repeat a card that appears

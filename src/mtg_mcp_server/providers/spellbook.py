@@ -280,6 +280,7 @@ async def estimate_bracket(
         ("Control-all-opponents combos", result.control_all_opponents_combos),
         ("Control-some-opponents combos", result.control_some_opponents_combos),
         ("Skip-turn combos", result.skip_turns_combos),
+        ("Bracket-relevant combos", result.relevant_combos),
         ("Combos", result.combos),
     ]
     found = [(label, items) for label, items in sections if items]

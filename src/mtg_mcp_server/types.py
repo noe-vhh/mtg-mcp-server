@@ -240,6 +240,18 @@ _BRACKET_CARD_FLAGS = {
 }
 
 
+# Per-combo classification flags in the current /estimate-bracket response
+# ({"combos": [{"combo": {...}, "lock": true, ...}]}) -> BracketEstimate aliases.
+_BRACKET_COMBO_FLAGS = {
+    "lock": "lockCombos",
+    "massLandDenial": "massLandDenialCombos",
+    "extraTurn": "extraTurnsCombos",
+    "skipTurns": "skipTurnsCombos",
+    "controlAllOpponents": "controlAllOpponentsCombos",
+    "controlSomeOpponents": "controlSomeOpponentsCombos",
+}
+
+
 class BracketEstimate(BaseModel):
     """Result of ``/estimate-bracket`` — bracket estimation for a decklist.
 
@@ -269,6 +281,8 @@ class BracketEstimate(BaseModel):
     # Every combo Spellbook found in the deck (including ones that use the
     # commander), as "A + B + C [tag]".
     combos: list[str] = Field(default_factory=list)
+    # The subset Spellbook itself marks as relevant to the bracket estimate.
+    relevant_combos: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
@@ -301,7 +315,9 @@ class BracketEstimate(BaseModel):
 
         if isinstance(data.get("combos"), list):
             all_combos: list[str] = []
+            relevant: list[str] = []
             two_card: list[str] = []
+            by_flag: dict[str, list[str]] = {key: [] for key in _BRACKET_COMBO_FLAGS.values()}
             for entry in data["combos"]:
                 variant = entry.get("combo") if isinstance(entry, dict) else None
                 if not isinstance(variant, dict):
@@ -320,11 +336,25 @@ class BracketEstimate(BaseModel):
                     continue
                 label = " + ".join(names)
                 tag = variant.get("bracketTag")
-                all_combos.append(f"{label} [{tag}]" if tag else label)
-                if len(names) == 2 and not variant.get("requires"):
+                tagged = f"{label} [{tag}]" if tag else label
+                all_combos.append(tagged)
+                if entry.get("relevant") is True:
+                    relevant.append(tagged)
+                # Spellbook classifies two-card combos itself; fall back to the
+                # card count only when the flag is missing.
+                if "definitelyTwoCard" in entry:
+                    is_two_card = entry["definitelyTwoCard"] is True
+                else:
+                    is_two_card = len(names) == 2 and not variant.get("requires")
+                if is_two_card:
                     two_card.append(label)
+                for flag, key in _BRACKET_COMBO_FLAGS.items():
+                    if entry.get(flag) is True:
+                        by_flag[key].append(label)
             derived["combos"] = all_combos
+            derived["relevant_combos"] = relevant
             derived["twoCardCombos"] = two_card
+            derived.update(by_flag)
 
         # Explicit lists in the payload (older response style) take precedence,
         # but the raw `combos` objects are always replaced by the readable list.
