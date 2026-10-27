@@ -29,7 +29,7 @@ from mtg_mcp_server.utils.formatters import (
     format_card_line,
     format_card_rules_line,
 )
-from mtg_mcp_server.utils.slim import slim_card
+from mtg_mcp_server.utils.slim import slim_card, slim_card_rules
 
 # Module-level client set by the lifespan. This pattern is required because
 # FastMCP's Depends()/lifespan_context DI doesn't propagate through mount().
@@ -127,7 +127,7 @@ async def search_cards(
             "has_more": result.has_more,
             "showing": showing,
             "card_detail_uri_template": "mtg://card/{name}",
-            "cards": [slim_card(card) for card in cards],
+            "cards": [(slim_card_rules if include_text else slim_card)(card) for card in cards],
         },
     )
 
@@ -163,7 +163,7 @@ async def cards_collection(
     return ToolResult(
         content="\n".join(lines) + ATTRIBUTION_SCRYFALL,
         structured_content={
-            "found": [slim_card(card) for card in found],
+            "found": [slim_card_rules(card) for card in found],
             "not_found": missing,
         },
     )

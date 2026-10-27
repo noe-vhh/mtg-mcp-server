@@ -23,6 +23,7 @@ from mtg_mcp_server.types import (
 from mtg_mcp_server.utils.slim import (
     slim_archetype,
     slim_card,
+    slim_card_rules,
     slim_combo,
     slim_edhrec_card,
     slim_format_staple,
@@ -132,6 +133,14 @@ class TestSlimCard:
         assert result["rarity"] == "mythic"
         assert result["price_usd"] == "5.50"
         assert result["edhrec_rank"] == 245
+
+    def test_rules_variant_adds_text_identity_legality(self, sample_card: Card) -> None:
+        result = slim_card_rules(sample_card)
+        assert result["name"] == "Muldrotha, the Gravetide"
+        assert result["oracle_text"].startswith("During each of your turns")
+        assert result["color_identity"] == ["B", "G", "U"]
+        assert result["commander_legality"] == "legal"
+        assert (result["power"], result["toughness"]) == ("6", "6")
 
     def test_excludes_bloat_fields(self, sample_card: Card) -> None:
         result = slim_card(sample_card)
