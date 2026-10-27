@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Batch tools (`bulk_cards_lookup`, `scryfall_cards_collection`, `bulk_collection_filter` with
+  `response_format="detailed"`, `scryfall_search_cards` with `include_text`) now put oracle text,
+  colour identity and Commander legality in `structured_content` too (new `slim_card_rules`).
+  Clients that read structured content previously saw only the slim fields.
 - `spellbook_estimate_bracket` parses Spellbook's current response, which lists `cards` with
   per-card flags (`banned`, `gameChanger`, `massLandDenial`, `extraTurn`) instead of the old
   per-category lists. Previously every finding came back empty even when the tag was `R`.

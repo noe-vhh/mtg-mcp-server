@@ -42,7 +42,7 @@ from mtg_mcp_server.utils.formatters import (
     format_card_rules_line,
 )
 from mtg_mcp_server.utils.query_parser import parse_query
-from mtg_mcp_server.utils.slim import slim_card
+from mtg_mcp_server.utils.slim import slim_card, slim_card_rules
 
 # Lightweight format alias map — maps common abbreviations to Scryfall legality
 # keys. Unlike utils.format_rules.normalize_format, this does NOT reject unknown
@@ -230,7 +230,7 @@ async def cards_lookup(
     return ToolResult(
         content="\n".join(lines) + ATTRIBUTION_SCRYFALL_BULK,
         structured_content={
-            "found": [slim_card(card) for card in found],
+            "found": [slim_card_rules(card) for card in found],
             "not_found": missing,
             "suggestions": suggestions,
         },
@@ -321,7 +321,10 @@ async def collection_filter(
         content="\n".join(lines) + ATTRIBUTION_SCRYFALL_BULK,
         structured_content={
             "total_matches": len(matches),
-            "cards": [slim_card(card) for card in shown],
+            "cards": [
+                (slim_card_rules if response_format == "detailed" else slim_card)(card)
+                for card in shown
+            ],
             "unresolved": unresolved,
         },
     )

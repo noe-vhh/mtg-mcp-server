@@ -35,6 +35,22 @@ def slim_card(card: Card) -> dict:
     }
 
 
+def slim_card_rules(card: Card) -> dict:
+    """slim_card plus the rules fields batch tools promise (text, identity, legality).
+
+    Clients read ``structured_content`` rather than the text block, so any tool
+    whose text shows oracle text must also expose it here.
+    """
+    return {
+        **slim_card(card),
+        "oracle_text": card.oracle_text,
+        "color_identity": list(card.color_identity),
+        "commander_legality": card.legalities.get("commander", "unknown"),
+        "power": card.power,
+        "toughness": card.toughness,
+    }
+
+
 def slim_rating(card: DraftCardRating) -> dict:
     """Essential draft rating fields (GIH WR, ALSA, IWD)."""
     return {

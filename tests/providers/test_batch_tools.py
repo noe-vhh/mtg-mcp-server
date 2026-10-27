@@ -92,6 +92,14 @@ class TestBulkCardsLookup:
         assert "Not found (1): Not A Card" in text
         assert result.structured_content["not_found"] == ["Not A Card"]
 
+    async def test_structured_content_carries_rules_fields(self, bulk_client: Client):
+        # Clients read structured_content, not the text block, so it must hold the rules data.
+        result = await bulk_client.call_tool("cards_lookup", {"names": ["Markov Purifier"]})
+        card = result.structured_content["found"][0]
+        assert "Lifelink" in card["oracle_text"]
+        assert sorted(card["color_identity"]) == ["B", "W"]
+        assert card["commander_legality"] == "legal"
+
     async def test_empty_names_is_an_error(self, bulk_client: Client):
         result = await bulk_client.call_tool("cards_lookup", {"names": []}, raise_on_error=False)
         assert result.is_error
@@ -123,6 +131,16 @@ class TestCollectionFilter:
         )
         cards = result.structured_content["cards"]
         assert [c["name"] for c in cards] == ["Anje, Maid of Dishonor"]
+        assert "oracle_text" not in cards[0]  # concise (default) stays slim
+
+    async def test_detailed_structured_content_has_rules_fields(self, bulk_client: Client):
+        result = await bulk_client.call_tool(
+            "collection_filter",
+            {"names": NAMES, "color_identity": "B", "response_format": "detailed"},
+        )
+        cards = result.structured_content["cards"]
+        assert cards
+        assert all(c["oracle_text"] is not None and c["color_identity"] for c in cards)
 
     async def test_bad_identity_is_an_error(self, bulk_client: Client):
         result = await bulk_client.call_tool(
@@ -205,6 +223,8 @@ class TestSearchIncludeText:
         assert "Haste" not in plain.content[0].text
         assert "Haste" in rich.content[0].text
         assert "CI: B" in rich.content[0].text
+        assert "oracle_text" not in plain.structured_content["cards"][0]
+        assert "Haste" in rich.structured_content["cards"][0]["oracle_text"]
 
 
 @pytest.fixture
